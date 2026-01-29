@@ -1,0 +1,156 @@
+version: "3.8"
+
+services:
+  # =========================
+  # PostgreSQL + pgvector
+  # =========================
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: news_postgres
+    environment:
+      POSTGRES_USER: newsapp
+      POSTGRES_PASSWORD: newsapp_secure_password_123
+      POSTGRES_DB: news_intelligence
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newsapp -d news_intelligence"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # =========================
+  # Redis
+  # =========================
+  redis:
+    image: redis:7-alpine
+    container_name: news_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # =========================
+  # FastAPI Backend
+  # =========================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: news_backend
+    environment:
+      DATABASE_URL: postgresql://newsapp:newsapp_secure_password_123@postgres:5432/news_intelligence
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # =========================
+  # Celery Worker
+  # =========================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: news_celery_worker
+    environment:
+      DATABASE_URL: postgresql://newsapp:newsapp_secure_password_123@postgres:5432/news_intelligence
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    restart: unless-stopped
+
+  # =========================
+  # Celery Beat
+  # =========================
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: news_celery_beat
+    environment:
+      DATABASE_URL: postgresql://newsapp:newsapp_secure_password_123@postgres:5432/news_intelligence
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    restart: unless-stopped
+
+  # =========================
+  # Frontend (Nginx + Vite Build)
+  # =========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: news_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # =========================
+  # pgAdmin (NEW)
+  # =========================
+  pgadmin:
+    image: dpage/pgadmin4
+    #container_name: news_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5051:80"   # <-- IMPORTANT: not 5050
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
