@@ -36,7 +36,7 @@ class FeedRanker:
         """Initialize the feed ranker."""
         self.diversity_percentage = settings.diversity_percentage  # 25%
         self.blind_spot_percentage = settings.blind_spot_percentage  # 5%
-        self.default_lookback_days = 2
+        self.default_lookback_days = 7
     
     async def get_personalized_feed(
         self,

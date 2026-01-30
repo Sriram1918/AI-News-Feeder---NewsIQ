@@ -22,7 +22,7 @@ from app.db import get_db_session
 from app.models import Article, User
 from app.services.personalization import feed_ranker
 
-logger = get_logger(__name__)
+logger = get_logger(__name__)   
 
 router = APIRouter(prefix="/feed", tags=["Feed"])
 

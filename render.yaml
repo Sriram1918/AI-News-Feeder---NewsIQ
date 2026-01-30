@@ -1,0 +1,67 @@
+# Render Blueprint Configuration
+# Deploy with: Connect GitHub repo to Render, it will auto-detect this file
+
+services:
+  # =========================
+  # Backend API (FastAPI + APScheduler)
+  # =========================
+  - type: web
+    name: newsiq-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.render
+    dockerContext: ./backend
+    plan: free
+    region: oregon  # Change to your preferred region
+    healthCheckPath: /health
+    envVars:
+      # Database (Supabase PostgreSQL)
+      - key: DATABASE_URL
+        sync: false  # Set manually after creating Supabase project
+      
+      # Redis (Upstash - optional for rate limiting)
+      - key: REDIS_URL
+        sync: false  # Set manually after creating Upstash Redis
+      
+      # Security Keys
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      
+      # Google API
+      - key: GOOGLE_API_KEY
+        sync: false  # Set manually with your API key
+      
+      # App Settings
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      
+      # CORS - Update with your frontend URL
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  # =========================
+  # Frontend (React/Vite Static Site)
+  # =========================
+  - type: web
+    name: newsiq-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    rootDir: ./frontend
+    plan: free
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false  # Set to your backend URL after deployment

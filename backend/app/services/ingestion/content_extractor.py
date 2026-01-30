@@ -160,7 +160,34 @@ class ContentExtractor:
                 )
             
             # Check if result is dict (from output_format='python')
-            if isinstance(result, dict):
+            # In newer trafilatura versions, result might be a Document object
+            if hasattr(result, 'text'):
+                # It's a Document object
+                content = result.text or ""
+                if len(content) < 100:
+                    return ExtractedContent(
+                        title=getattr(result, 'title', None),
+                        content=content,
+                        author=getattr(result, 'author', None),
+                        date=getattr(result, 'date', None),
+                        description=getattr(result, 'description', None),
+                        sitename=getattr(result, 'sitename', None),
+                        extraction_method="trafilatura",
+                        success=False,
+                        error="Content too short",
+                    )
+                
+                return ExtractedContent(
+                    title=getattr(result, 'title', None),
+                    content=content,
+                    author=getattr(result, 'author', None),
+                    date=getattr(result, 'date', None),
+                    description=getattr(result, 'description', None),
+                    sitename=getattr(result, 'sitename', None),
+                    extraction_method="trafilatura",
+                    success=True,
+                )
+            elif isinstance(result, dict):
                 content = result.get("text", "")
                 if len(content) < 100:
                     return ExtractedContent(
