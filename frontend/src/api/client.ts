@@ -102,8 +102,10 @@ export interface TimelineResponse {
   last_updated: string
 }
 
-// API client instance
-const API_BASE_URL = '/api/v1'
+// API client instance - use env var for production, fallback for local dev
+const API_BASE_URL = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1'
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
