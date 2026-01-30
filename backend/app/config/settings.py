@@ -86,14 +86,18 @@ class Settings(BaseSettings):
         alias="FRONTEND_URL"
     )
     allowed_origins: str = Field(
-        default="http://localhost:5173,http://localhost:3000",
+        default="http://localhost:5173,http://localhost:3000,https://newsiq-frontend.onrender.com",
         alias="ALLOWED_ORIGINS"
     )
     
     @property
     def cors_origins(self) -> List[str]:
         """Parse CORS origins from comma-separated string."""
-        return [origin.strip() for origin in self.allowed_origins.split(",")]
+        origins = [origin.strip() for origin in self.allowed_origins.split(",")]
+        # Also add frontend_url if not already in list
+        if self.frontend_url and self.frontend_url not in origins:
+            origins.append(self.frontend_url)
+        return origins
     
     # =========================================================================
     # API Keys
