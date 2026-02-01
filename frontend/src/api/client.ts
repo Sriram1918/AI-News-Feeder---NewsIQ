@@ -172,6 +172,11 @@ export const api = {
     return response.data
   },
   
+  getBookmarks: async (params: { page?: number; per_page?: number }): Promise<FeedResponse> => {
+    const response = await apiClient.get<FeedResponse>('/feed/bookmarks', { params })
+    return response.data
+  },
+  
   // Interactions
   recordInteraction: async (data: {
     article_id: string

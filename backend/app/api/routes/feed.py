@@ -4,7 +4,7 @@ Feed API Routes
 Endpoints for personalized news feed.
 """
 
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -19,7 +19,7 @@ from app.api.schemas import (
 )
 from app.config.logging import get_logger
 from app.db import get_db_session
-from app.models import Article, User
+from app.models import Article, User, UserInteraction
 from app.services.personalization import feed_ranker
 
 logger = get_logger(__name__)   
@@ -116,6 +116,95 @@ async def get_feed(
                 read_time_minutes=read_time,
             )
         )
+    
+    has_more = offset + len(articles) < total_count
+    
+    return FeedResponse(
+        articles=article_responses,
+        has_more=has_more,
+        total_count=total_count,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.get("/bookmarks", response_model=FeedResponse)
+async def get_bookmarks(
+    page: int = Query(default=1, ge=1, description="Page number"),
+    per_page: int = Query(default=20, ge=1, le=50, description="Items per page"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> FeedResponse:
+    """
+    Get user's bookmarked articles.
+    """
+    offset = (page - 1) * per_page
+    
+    # Get bookmarked article IDs
+    bookmark_query = (
+        select(UserInteraction.article_id)
+        .where(
+            UserInteraction.user_id == user.id,
+            UserInteraction.interaction_type == "bookmark"
+        )
+        .order_by(UserInteraction.created_at.desc())
+    )
+    result = await db.execute(bookmark_query)
+    bookmarked_ids = [row[0] for row in result.all()]
+    
+    if not bookmarked_ids:
+        return FeedResponse(
+            articles=[],
+            has_more=False,
+            total_count=0,
+            page=page,
+            per_page=per_page,
+        )
+    
+    # Get articles with pagination
+    from sqlalchemy import func
+    
+    # Get total count
+    count_query = select(func.count()).where(Article.id.in_(bookmarked_ids))
+    count_result = await db.execute(count_query)
+    total_count = count_result.scalar() or 0
+    
+    # Get articles in bookmark order
+    articles_query = (
+        select(Article)
+        .where(Article.id.in_(bookmarked_ids))
+        .offset(offset)
+        .limit(per_page)
+    )
+    articles_result = await db.execute(articles_query)
+    articles = list(articles_result.scalars().all())
+    
+    # Convert to response format
+    article_responses = []
+    for article in articles:
+        word_count = len(article.content.split()) if article.content else 0
+        read_time = max(1, word_count // 200)
+        
+        article_responses.append(
+            ArticleResponse(
+                id=article.id,
+                title=article.title,
+                url=article.url,
+                summary=article.summary,
+                source=article.source,
+                source_credibility_score=article.source_credibility_score,
+                published_at=article.published_at,
+                topic_tags=article.topic_tags,
+                read_time_minutes=read_time,
+                is_blind_spot=False,
+            )
+        )
+    
+    logger.info(
+        "Retrieved bookmarks",
+        user_id=str(user.id),
+        count=len(article_responses),
+    )
     
     has_more = offset + len(articles) < total_count
     

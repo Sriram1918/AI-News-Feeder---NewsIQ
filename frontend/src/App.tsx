@@ -8,6 +8,7 @@ import Onboarding from './pages/Onboarding'
 import ArticleDetail from './pages/ArticleDetail'
 import Stories from './pages/Stories'
 import StoryTimeline from './pages/StoryTimeline'
+import Bookmarks from './pages/Bookmarks'
 
 // Protected route component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,11 @@ function App() {
         <Route path="article/:id" element={<ArticleDetail />} />
         <Route path="stories" element={<Stories />} />
         <Route path="stories/:id" element={<StoryTimeline />} />
+        <Route path="bookmarks" element={
+          <ProtectedRoute>
+            <Bookmarks />
+          </ProtectedRoute>
+        } />
         <Route
           path="onboarding"
           element={
