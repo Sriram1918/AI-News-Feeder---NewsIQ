@@ -256,9 +256,14 @@ class FeedRanker:
     ) -> Tuple[List[Article], int]:
         """
         Get recent articles for cold start users.
+        
+        Filters by user's preference_topics if available.
         """
+        from app.models import RSSSource
+        
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
         muted_sources = user.muted_sources or []
+        preference_topics = user.preference_topics or []
         
         conditions = [
             Article.published_at >= cutoff_date,
@@ -266,6 +271,25 @@ class FeedRanker:
         
         if muted_sources:
             conditions.append(not_(Article.source.in_(muted_sources)))
+        
+        # If user has preference topics, filter articles from those categories
+        if preference_topics:
+            # Get sources that match user's preferred topics
+            source_query = (
+                select(RSSSource.name)
+                .where(RSSSource.category.in_(preference_topics))
+            )
+            source_result = await db.execute(source_query)
+            preferred_sources = [row[0] for row in source_result.all()]
+            
+            if preferred_sources:
+                conditions.append(Article.source.in_(preferred_sources))
+                logger.info(
+                    "Filtering cold start feed by topics",
+                    user_id=str(user.id),
+                    topics=preference_topics,
+                    sources=preferred_sources,
+                )
         
         query = (
             select(Article)
