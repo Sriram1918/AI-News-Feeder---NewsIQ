@@ -83,12 +83,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS configuration
+# CORS configuration - explicitly include all origins
+cors_origins = settings.cors_origins.copy() if settings.cors_origins else []
+# Always include these origins for production
+production_origins = [
+    "https://newsiq-frontend.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+for origin in production_origins:
+    if origin not in cors_origins:
+        cors_origins.append(origin)
+
+logger.info(f"CORS Origins configured: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
